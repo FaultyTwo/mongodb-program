@@ -10,6 +10,7 @@ Specify the MongoDB server URL, then click "Connect" button.
 If the server is found. A list of databases will be shown in the table.
 
 For importing files to a database. Click "Add files to the database", select the "database_folder" with following hierachy:
+
 database_folder<br>
 &emsp;|--> collection_1<br>
 &emsp;&emsp;|--> img.png<br>
@@ -23,6 +24,7 @@ database_folder<br>
 Any subfolders inside collections will be lumped with files in collections.
 
 To add files into a collection. Click "Add files to the collection", then select the collection folder with following hierachy:
+
 collection<br>
 &emsp;|--> doc1.docx<br>
 &emsp;|--> img1.jpg<br>
@@ -37,7 +39,7 @@ To download a collection. Select the collection then click 'Download a collectio
 Check `requirements.txt` for required libraries.
 
 ## Building a .EXE file
-You can build a .EXE file from the source code using `pyinstaller` libraries, then type in the console:
+You can build a .EXE file from the source code using `pyinstaller` libraries, then type in the console:<br>
 `pyinstaller --onefile main.py`
 
 ## Future Features
