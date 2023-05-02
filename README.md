@@ -11,22 +11,22 @@ If the server is found. A list of databases will be shown in the table.
 
 For importing files to a database. Click "Add files to the database", select the "database_folder" with following hierachy:
 database_folder<br>
-    |--> collection_1<br>
-        |--> img.png<br>
-        |--> img2.png<br>
-        ...<br>
-    |--> collection_2<br>
-        |--> doc1.docx<br>
-        |--> doc2.docx<br>
-        ...<br>
+&emsp;|--> collection_1<br>
+&emsp;&emsp;|--> img.png<br>
+&emsp;&emsp;|--> img2.png<br>
+&emsp;&emsp;...<br>
+&emsp;|--> collection_2<br>
+&emsp;&emsp;|--> doc1.docx<br>
+&emsp;&emsp;|--> doc2.docx<br>
+&emsp;&emsp;...<br>
 
 Any subfolders inside collections will be lumped with files in collections.
 
 To add files into a collection. Click "Add files to the collection", then select the collection folder with following hierachy:
 collection<br>
-    |--> doc1.docx<br>
-    |--> img1.jpg<br>
-    ...<br>
+&emsp;|--> doc1.docx<br>
+&emsp;|--> img1.jpg<br>
+&emsp;...<br>
 
 Any subfolders inside a collection will be lumped with files in that collection.
 
