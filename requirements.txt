@@ -1,6 +1,2 @@
 PyQt6>=6.4.0
-scikit-image>=1.1.2
 pymongo>=4.2.0
-python-docx>=0.8.11
-numpy
-opencv-python

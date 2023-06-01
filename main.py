@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QMainWindow, QApplication, QVBoxLayout,
 from PyQt6.QtCore import Qt, QTimer
 from pymongo import MongoClient
 from format_handler_sci import *
-from path_walk import *
+from helper_func import *
 
 import sys
 
@@ -210,40 +210,25 @@ class MainWidgets(QWidget):
         push = path_walk(self.fol) # get all dir
         main_path = pathlib.Path(self.fol)
         print(len(main_path.parts),main_path.parts)
-        img_format = [".jpg",".jpeg",".png"]
-        doc_format = [".docx",".doc"]
 
         for y in push:
-            if y.suffix in img_format:
-                data_dict = {
-                            "name":str(y.parts[-1]),
-                            "data":image_encode(y)
-                        }
-            elif y.suffix in doc_format:
-                data_dict = {
-                            "name":str(y.parts[-1]),
-                            "data":docx_encode(y)
-                        }
-            self.col.insert_one(data_dict)
+            subpath = y.parts[y.parts.index(main_path.parts[-1])+1:len(y.parts) - 1] # get subfolders inside a folder
+            data_dict = {
+                "name": str(y.parts[-1]),
+                "subpath": '/'.join(subpath) if len(subpath) > 0 else -1,
+                "content": file_encode(y)
+            }
+            #print(data_dict)
+            self.col.insert_one(data_dict) # let's test the code first
         
         self.mongo_status.setText("Status: Done")
         self.mongo_status.setStyleSheet("color: green")
 
+        # refresh. better turn this into a method
+        self.entry_view.clear()
+        self.entry_view.addItems(self.col.find().distinct("name"))
+
     def __upload(self):
-        # - Image files are large, too damn large
-        # - It's better to create collections for each rather than just pile them in a single collections (duh)
-        #   - Collection names: Folder file <-- need serious walking
-        #   - Contents: Various from each folder
-        # - Main Problems: Each files in these folder ... how do I say it, they're different.
-        #   - .docx <- easy
-        #   - .jpeg <- uh.. resize it using opencv then add it
-        #   - ignore list: .pdf (dupe of docx, ignore them), .mp4 (too large), audio (don't even bother for now)
-
-        # format_handler -> handle files for encode to mongo, and decode from mongo
-        # path_walk -> fetch all files from the path and sub-path, return as a list
-        # not sure if database and collection uploads need seperate functionality or not
-        # oh well. time will tell i guess.
-
         # problem: collection names need to be the name of dir containing files and subdir
         # now. we need some kidn of way to detect the main dir and subdir
         # for subdir, just lump its file with main dir ones
@@ -258,8 +243,6 @@ class MainWidgets(QWidget):
         main_path = pathlib.Path(self.fol)
         print(len(main_path.parts),main_path.parts)
         col_list = list()
-        img_format = [".jpg",".jpeg",".png"]
-        doc_format = [".docx",".doc"]
 
         for x in push:
             col_list.append(x.parts[len(main_path.parts)]) # get each main dir, should be next from the folder paths
@@ -271,20 +254,12 @@ class MainWidgets(QWidget):
             col_temp = self.database[str(x)]
             for y in push: # get each elements
                 if x == y.parts[len(main_path.parts)]: # check if folder name is the same or not
-                    if y.suffix in img_format: # image files
-                        data_dict = {
-                            "name":str(y.parts[-1]),
-                            "data":image_encode(y)
-                        }
-                    elif y.suffix in doc_format: # document file
-                        data_dict = {
-                            "name":str(y.parts[-1]),
-                            "data":docx_encode(y)
-                        }
-                    else:
-                        print("You suck at coding, and you should be asham of yourself.")
-
-                    print(data_dict['name'])
+                    subpath = y.parts[y.parts.index(main_path.parts[-1])+1:len(y.parts) - 1] # get subfolders inside a folder
+                    data_dict = {
+                        "name": str(y.parts[-1]),
+                        "subpath": '/'.join(subpath) if len(subpath) > 0 else -1,
+                        "content": file_encode(y)
+                    }
                     col_temp.insert_one(data_dict)
 
         self.col_view.clear() # refresh
@@ -297,19 +272,17 @@ class MainWidgets(QWidget):
         if(len(self.fol) == 0): # almost forgot about the cancel culture
             print("no, gtfo")
             return
-        
-        img_format = ["jpg","jpeg","png"] # TODO: Should global-fy these vars for future format support
-        # who the heck uses tiff for ml, masochrist?
-        doc_format = ["docx","doc"]
 
         for y in self.col.find():
-            #print(y['name'],type(y['name']))
-            get_format = str.split(y['name'],'.')
-            format = get_format[len(get_format) - 1] # get last member
-            if format in img_format: # is image
-                image_write(self.fol + '//' + y['name'],image_decode(y['data'])) # passed
-            if format in doc_format: # is doc
-                docx_decode(self.fol + '//' + y['name'],y['data'])
+            # first, check whether a subfolder exist or not
+            #subpath = self.fol + "/" + y['subpath'] if type(y['subpath']) is str else -1
+            subpath = "/".join([self.fol, y['subpath']]) if type(y['subpath']) is str else -1
+            if subpath != -1:
+                if not os.path.exists(subpath):
+                    os.makedirs(subpath)
+            #fullsub = self.fol + "/" + y['subpath'] + "/" + y['name'] if y['subpath'] != -1 else self.fol + "/"  + y['name']
+            fullsub = "/".join([self.fol,y['subpath'],y['name']]) if y['subpath'] != -1 else "/".join([self.fol,y['name']])
+            file_decode(fullsub, y['content'])
         
         self.mongo_status.setText("Status: Done")
         self.mongo_status.setStyleSheet("color: green")
@@ -319,22 +292,15 @@ class MainWidgets(QWidget):
         if(len(self.fol) == 0): # almost forgot about the cancel culture
             print("no, gtfo")
             return
-        
-        img_format = ["jpg","jpeg","png"] # TODO: Should global-fy these vars for future format support
-        # who the heck uses tiff for ml, masochrist?
-        doc_format = ["docx","doc"]
 
         # great. self.entry.name concatenate collection name for its return
         # alright. let's process it first so self.col can find it
         txt = '.'.join(str.split(self.entry.name,'.')[-2:]) # get the name of the file
 
         for y in self.col.find({"name":txt}):
-            get_format = str.split(y['name'],'.')
-            format = get_format[len(get_format) - 1] # get last member
-            if format in img_format: # is image
-                image_write(self.fol + '//' + y['name'],image_decode(y['data'])) # passed
-            if format in doc_format: # is doc
-                docx_decode(self.fol + '//' + y['name'],y['data'])
+            #fullsub = self.fol + "/" + y['subpath'] + "/" + y['name'] if y['subpath'] != -1 else self.fol + "/"  + y['name']
+            fullsub = "/".join([self.fol,y['name']])
+            file_decode(fullsub, y['content'])
         
         self.mongo_status.setText("Status: Done")
         self.mongo_status.setStyleSheet("color: green")
@@ -350,27 +316,21 @@ class MainWidgets(QWidget):
         col_names = self.database.list_collection_names()
         print(self.fol, type(self.fol))
 
-        img_format = ["jpg","jpeg","png"] # TODO: Should global-fy these vars for future format support
-        # who the heck uses tiff for ml, masochrist?
-        doc_format = ["docx","doc"]
-
         for x in col_names:
             col_temp = self.database[str(x)]
-            download_path = self.fol + '//' + x + '//'
+            download_path = self.fol + '/' + x + '/'
             # rewrite this to checks for existing directory you dork
-            try:
+            if not os.path.exists(download_path):
                 os.mkdir(download_path)
-            except:
-                print(x + ' already exist, using that directory ..')
 
             for y in col_temp.find():
-                #print(y['name'],type(y['name']))
-                get_format = str.split(y['name'],'.')
-                format = get_format[len(get_format) - 1] # get last member
-                if format in img_format: # is image
-                    image_write(download_path + y['name'],image_decode(y['data'])) # passed
-                if format in doc_format: # is doc
-                    docx_decode(download_path + y['name'],y['data'])
+                #subpath = self.fol + "/" + x + "/" + y['subpath'] if type(y['subpath']) is str else -1
+                subpath = "/".join([self.fol,x,y['subpath']]) if type(y['subpath']) is str else -1
+                if subpath != -1:
+                    if not os.path.exists(subpath):
+                        os.makedirs(subpath)
+                fullsub = "/".join([self.fol,x,y['subpath'],y['name']]) if y['subpath'] != -1 else "/".join([self.fol,x,y['name']])
+                file_decode(fullsub, y['content'])
 
         self.mongo_status.setText("Status: Done")
         self.mongo_status.setStyleSheet("color: green")
