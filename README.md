@@ -1,3 +1,5 @@
+$ NOTE: FOR MORE RECENT UPDATE, CHECK 'DEV' BRANCH INSTEAD!
+
 ## MongoDB Dataset Program
 - So far. Support following formats.
   - Images: ".jpeg", ".jpg", ".png"
