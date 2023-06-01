@@ -5,10 +5,9 @@ from PyQt6.QtWidgets import (QMainWindow, QApplication, QVBoxLayout,
                             QFileDialog, QScrollBar)
 from PyQt6.QtCore import Qt, QTimer
 from pymongo import MongoClient
-from format_handler_sci import *
 from helper_func import *
 
-import sys
+import sys, os
 
 # GUI Design Guideline:
 # - First, we need the user to add their mongodb server address
