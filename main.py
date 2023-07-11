@@ -2,10 +2,12 @@
 from PyQt6.QtWidgets import (QMainWindow, QApplication, QVBoxLayout, 
                             QLabel, QWidget, QLineEdit, QHBoxLayout,
                             QGridLayout, QPushButton, QListWidget,
-                            QFileDialog, QScrollBar)
+                            QFileDialog, QMenu, QMessageBox)
+from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, QTimer
 from pymongo import MongoClient
 from helper_func import *
+from dialogs import *
 
 import sys, os
 
@@ -36,43 +38,26 @@ class MainWidgets(QWidget):
         self.mongo_search = QLineEdit()
         self.mongo_search.editingFinished.connect(self.__entry_query)
         self.mongo_search.setEnabled(False)
-        
-        #self.mongo_search_btn = QPushButton("Search")
-        #self.mongo_search_btn.setEnabled(False) # to true if server is connected
-       
-        #self.mongo_folder_btn = QPushButton("Specify The Folder ..")
-        #self.mongo_folder_btn.setEnabled(False)
-        #self.mongo_folder_btn.clicked.connect(self.__fileDialog)
-
-        self.mongo_add_btn_data = QPushButton("Add files to the database")
-        self.mongo_add_btn_data.setEnabled(False)
-        self.mongo_add_btn_data.clicked.connect(self.__upload)
-
-        self.mongo_download_btn_data = QPushButton("Download a database")
-        self.mongo_download_btn_data.setEnabled(False)
-        self.mongo_download_btn_data.clicked.connect(self.__download)
-
-        self.mongo_add_btn_col = QPushButton("Add files to the collection")
-        self.mongo_add_btn_col.setEnabled(False)
-        self.mongo_add_btn_col.clicked.connect(self.__upload_col)
-
-        self.mongo_download_btn_col = QPushButton("Download a collection")
-        self.mongo_download_btn_col.setEnabled(False)
-        self.mongo_download_btn_col.clicked.connect(self.__download_col)
-
-        self.mongo_download_btn_entry = QPushButton("Download a file")
-        self.mongo_download_btn_entry.setEnabled(False)
-        self.mongo_download_btn_entry.clicked.connect(self.__download_entry)
 
         self.data_view = QListWidget()
         #self.data_view.addItem("CRACK!!???")
         self.data_view.itemClicked.connect(self.__data_click)
+        self.data_view.setEnabled(False)
+        self.data_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.data_view.customContextMenuRequested.connect(self.__data_context_menu)
+        self.data_view.setEnabled(False)
 
         self.col_view = QListWidget()
         self.col_view.itemClicked.connect(self.__col_click)
+        self.col_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.col_view.customContextMenuRequested.connect(self.__col_context_menu)
+        self.col_view.setEnabled(False)
 
         self.entry_view = QListWidget()
         self.entry_view.itemClicked.connect(self.__entry_click)
+        self.entry_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.entry_view.customContextMenuRequested.connect(self.__entry_context_menu)
+        self.entry_view.setEnabled(False)
 
         self.mongo_status = QLabel("Status: Not Connected")
         self.mongo_status.setStyleSheet("color: red")
@@ -85,17 +70,6 @@ class MainWidgets(QWidget):
         sv_lay.addWidget(self.mongo_sv) # text input
         sv_lay.addWidget(self.mongo_sv_btn) # search button
 
-        # actions for pushing and downloading from database
-        action_lay = QGridLayout()
-        action_lay.addWidget(self.mongo_add_btn_data,0,0)
-        action_lay.addWidget(self.mongo_download_btn_data,0,1)
-        #action_lay.addWidget(self.mongo_download_btn_entry,1,0)
-
-        # action for pushing and downloading from a collection
-        action_lay_2 = QHBoxLayout()
-        action_lay_2.addWidget(self.mongo_add_btn_col)
-        action_lay_2.addWidget(self.mongo_download_btn_col)
-
         # potato_lay = Mani Layout for the main window
         potato_lay = QGridLayout()
         potato_lay.addWidget(mongo_sv_txt,0,0) # text
@@ -105,9 +79,6 @@ class MainWidgets(QWidget):
         potato_lay.addWidget(self.data_view,3,0) # database table
         potato_lay.addWidget(self.col_view,3,1) # collections table
         potato_lay.addWidget(self.entry_view,3,2) # collections table
-        potato_lay.addLayout(action_lay,4,0) # action
-        potato_lay.addLayout(action_lay_2,4,1) # action
-        potato_lay.addWidget(self.mongo_download_btn_entry,4,2) # file download
     
         self.lay = QVBoxLayout(self) # this is our parent
         self.lay.addLayout(potato_lay)
@@ -116,6 +87,150 @@ class MainWidgets(QWidget):
         self.col = None # cache the col variable
 
         self.setLayout(self.lay)
+
+    def __data_context_menu(self,pos):
+        item = self.data_view.itemAt(pos) # check if there's an item or not
+        menu = QMenu(self)
+        # item action
+        if item is not None:
+            self.database = self.cilent[item.text()]
+            action_download = menu.addAction("Download")
+            action_download.triggered.connect(self.__download)
+            action_upload = menu.addAction("Upload")
+            action_upload.triggered.connect(self.__upload)
+            action_delete = menu.addAction("Delete")
+            action_delete.triggered.connect(self.__delete_database)
+            seperator = QAction(self)
+            seperator.setSeparator(True)
+            menu.addAction(seperator)
+
+        # global action
+        action_new = menu.addAction("New")
+        action_new.triggered.connect(self.__new_database)
+        menu.exec(self.data_view.mapToGlobal(pos))
+
+    def __new_database(self):
+        dialog = NewDatabaseDialog(self)
+        dialog.return_value.connect(self.__new_database_exec)
+        dialog.exec()
+
+    def __new_database_exec(self, value):
+        print(value)
+        self.database = self.cilent[value] # does this even work?
+        self.col = self.database["collection"]
+        self.col.insert_one({"name": "test","subpath":-1,"content":"literally nothing"})
+        # re and fresh
+        self.database = None
+        self.data_view.clear()
+        self.data_view.addItems(self.cilent.list_database_names())
+        self.col = None
+        self.col_view.clear() # refresh
+        self.entry = None
+        self.entry_view.clear() # refresh
+        self.mongo_status.setText("Status: Done")
+        self.mongo_status.setStyleSheet("color: green")
+
+    def __delete_database(self):
+        # "Are you sure you want to drop this?" windows
+        name = self.database.name
+        confirmation = QMessageBox.question(self, "Delete database", "Are you SURE you want to delete this database?\n(You can't undo this process!)")
+        if confirmation == QMessageBox.StandardButton.Yes:
+            self.cilent.drop_database(self.database)
+            self.database = None
+            self.data_view.clear()
+            self.data_view.addItems(self.cilent.list_database_names())
+            self.col = None
+            self.col_view.clear() # refresh
+            self.col_view.setEnabled(False)
+            self.entry = None # refresh entry too
+            self.entry_view.clear()
+            self.entry_view.setEnabled(False)
+        else:
+            return
+        self.mongo_status.setText(f"Status: Dropped \"{name}\"")
+        self.mongo_status.setStyleSheet("color: green")
+
+    def __col_context_menu(self,pos):
+        item = self.col_view.itemAt(pos) # check if there's an item or not
+        menu = QMenu(self)
+        # item action
+        if item is not None:
+            self.col = self.database[item.text()]
+            action_download = menu.addAction("Download")
+            action_download.triggered.connect(self.__download_col)
+            action_upload = menu.addAction("Upload")
+            action_upload.triggered.connect(self.__upload_col)
+            action_delete = menu.addAction("Delete")
+            action_delete.triggered.connect(self.__delete_col)
+            seperator = QAction(self)
+            seperator.setSeparator(True)
+            menu.addAction(seperator)
+
+        # entry refresh menu
+        if self.col_view.count() > 0:
+            action_new = menu.addAction("Refresh")
+            action_new.triggered.connect(self.__refresh_col)
+
+        # global action
+        action_new = menu.addAction("New")
+        action_new.triggered.connect(self.__new_col)
+        menu.exec(self.col_view.mapToGlobal(pos))
+    def __refresh_col(self):
+        self.entry_view.clear()
+        self.entry_view.addItems(self.col.find().distinct("name"))
+        self.mongo_status.setText(f"Status: Refreshed")
+        self.mongo_status.setStyleSheet("color: green")
+
+    def __delete_col(self):
+        # "Are you sure you want to drop this?" windows
+        name = self.col.name
+        confirmation = QMessageBox.question(self, "Delete collection", "Are you sure you want to delete this collection?")
+        if confirmation == QMessageBox.StandardButton.Yes:
+            self.col.drop()
+            self.col = None
+            self.col_view.clear() # refresh
+            self.col_view.addItems(self.database.list_collection_names())
+            self.entry = None # refresh entry too
+            self.entry_view.clear()
+            self.mongo_search.clear()
+            self.mongo_search.setEnabled(False)
+        else:
+            return
+        self.mongo_status.setText(f"Status: Dropped \"{name}\"")
+        self.mongo_status.setStyleSheet("color: green")
+    
+    def __entry_context_menu(self,pos):
+        item = self.entry_view.itemAt(pos) # check if there's an item or not
+        menu = QMenu(self)
+        # item action
+        if item is not None:
+            self.entry = self.col[item.text()]
+            action_download = menu.addAction("Download")
+            action_download.triggered.connect(self.__download_entry)
+            action_delete = menu.addAction("Delete")
+            action_delete.triggered.connect(self.__delete_entry)
+            seperator = QAction(self)
+            seperator.setSeparator(True)
+            menu.addAction(seperator)
+
+        # global action
+        menu.exec(self.entry_view.mapToGlobal(pos))
+
+    def __delete_entry(self):
+        # "Are you sure you want to drop this?" windows
+        name = self.entry.name.split(".")[1:]
+        name = ".".join(name)
+        confirmation = QMessageBox.question(self, "Delete entry", "Are you sure you want to delete this entry?")
+        if confirmation == QMessageBox.StandardButton.Yes:
+            # of course ".name" method also includes its collection name too
+            self.col.delete_one({"name": name})
+            self.entry = None
+            self.entry_view.clear()
+            self.entry_view.addItems(self.col.find().distinct("name"))
+        else:
+            return
+        self.mongo_status.setText(f"Status: Dropped an entry")
+        self.mongo_status.setStyleSheet("color: green")
     
     def __data_click(self, item):
         # display col items when database is clicked
@@ -124,12 +239,9 @@ class MainWidgets(QWidget):
 
         self.database = self.cilent[item.text()]
         self.col_view.addItems(self.database.list_collection_names())
-        self.mongo_add_btn_data.setEnabled(True)
-        self.mongo_download_btn_data.setEnabled(True)
-        self.mongo_add_btn_col.setEnabled(False)
-        self.mongo_download_btn_col.setEnabled(False)
-        self.mongo_download_btn_entry.setEnabled(False)
         self.mongo_search.setEnabled(False)
+        self.entry_view.setEnabled(False)
+        self.col_view.setEnabled(True)
 
         self.col = None # Prevent phantom collections
         self.entry = None # Prevent phantom entry
@@ -140,15 +252,12 @@ class MainWidgets(QWidget):
         print(item.text())
         self.entry_view.clear()
         self.entry_view.addItems(self.col.find().distinct("name"))
-        self.mongo_download_btn_col.setEnabled(True)
-        self.mongo_add_btn_col.setEnabled(True)
-        self.mongo_download_btn_entry.setEnabled(False)
         self.mongo_search.setEnabled(True)
-        # Enable user to specify a source folder
+        self.entry_view.setEnabled(True)
+        self.entry = None
     
     def __entry_click(self, item):
         self.entry = self.col[item.text()]
-        self.mongo_download_btn_entry.setEnabled(True)
         print(self.entry)
 
     def __entry_query(self):
@@ -170,11 +279,10 @@ class MainWidgets(QWidget):
         self.entry_view.clear()
         self.col = None
         self.entry = None
-        self.mongo_add_btn_data.setEnabled(False)
-        self.mongo_add_btn_col.setEnabled(False)
-        self.mongo_download_btn_data.setEnabled(False)
-        self.mongo_download_btn_col.setEnabled(False)
-        self.mongo_download_btn_entry.setEnabled(False)
+        self.data_view.setEnabled(True)
+        self.col_view.setEnabled(False)
+        self.entry_view.setEnabled(False)
+        self.mongo_search.setEnabled(False)
         # This is going to be pain in the ass to design
         # Need some clear gui design before designing .. this entire things
         try:
@@ -196,6 +304,19 @@ class MainWidgets(QWidget):
 
         #print(self.cilent.list_database_names())
         self.data_view.addItems(self.cilent.list_database_names())
+        
+    def __new_col(self):
+        dialog = NewCollectionDialog(self)
+        dialog.return_value.connect(self.__new_col_exec)
+        dialog.exec()
+
+    def __new_col_exec(self, value):
+        self.database.create_collection(value)
+        self.col = None
+        self.col_view.clear() # refresh
+        self.col_view.addItems(self.database.list_collection_names())
+        self.mongo_status.setText("Status: Done")
+        self.mongo_status.setStyleSheet("color: green")
 
     def __upload_col(self):
         # Upload for collection
@@ -227,10 +348,9 @@ class MainWidgets(QWidget):
         self.entry_view.clear()
         self.entry_view.addItems(self.col.find().distinct("name"))
 
+    # don't forget to create contexts for databases too!
+
     def __upload(self):
-        # problem: collection names need to be the name of dir containing files and subdir
-        # now. we need some kidn of way to detect the main dir and subdir
-        # for subdir, just lump its file with main dir ones
         self.fol = QFileDialog.getExistingDirectory(self,"Specify your data directory")
         if(len(self.fol) == 0): # almost forgot about the cancel culture
             print("no, gtfo")
@@ -261,10 +381,11 @@ class MainWidgets(QWidget):
                     }
                     col_temp.insert_one(data_dict)
 
-        self.col_view.clear() # refresh
-        self.col_view.addItems(self.database.list_collection_names())
         self.mongo_status.setText("Status: Done")
         self.mongo_status.setStyleSheet("color: green")
+
+        self.col_view.clear() # refresh
+        self.col_view.addItems(self.database.list_collection_names())
 
     def __download_col(self):
         self.fol = QFileDialog.getExistingDirectory(self,"Specify your data directory")
